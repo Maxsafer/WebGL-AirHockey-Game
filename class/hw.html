@@ -1,0 +1,160 @@
+<!DOCTYPE HTML>
+<html>
+   <body>
+      <canvas id = "mycanvas" width = "512" height = "512"></canvas>
+
+      <script>
+         'use strict';
+
+         class ShaderProgram
+         {
+            constructor(gl, vertexShaderCodeString, fragmentShaderCodeString)
+            {
+               var vertShader = gl.createShader(gl.VERTEX_SHADER);
+               gl.shaderSource(vertShader, vertexShaderCodeString);
+               gl.compileShader(vertShader);
+
+               var fragShader = gl.createShader(gl.FRAGMENT_SHADER);
+               gl.shaderSource(fragShader, fragmentShaderCodeString);
+               gl.compileShader(fragShader);
+
+               this.shaderProgram = gl.createProgram();
+               gl.attachShader(this.shaderProgram, vertShader);
+               gl.attachShader(this.shaderProgram, fragShader);
+               gl.linkProgram(this.shaderProgram);
+            }
+
+            activate(gl)
+            {
+               gl.useProgram(this.shaderProgram);
+            }
+         }
+
+         var canvas = document.getElementById('mycanvas');
+         var gl = canvas.getContext('webgl');
+         var shader;
+
+         function init()
+         {
+            var vertCode =
+            `
+            attribute vec2 coordinates;
+
+            uniform vec2 base_position;
+            uniform vec2 transform;
+            uniform vec2 scale;
+            void main()
+            {
+               vec2 rot = vec2( (coordinates.x * transform.y + coordinates.y * transform.x)*scale.x,
+                                (coordinates.y * transform.y - coordinates.x * transform.x)*scale.y );
+
+               gl_Position = vec4(base_position+rot, 0.0, 1.0);
+            }
+            `;
+
+            var fragCode = 
+            `
+            precision highp float;
+
+            uniform vec4 fragColor;
+            void main()
+            {
+               gl_FragColor = fragColor;
+            }
+            `;            
+
+            shader = new ShaderProgram( gl, vertCode, fragCode );
+         }
+
+                  
+         function draw()
+         {
+            const tNow = window.performance.now();
+
+            const intervals = 5;
+
+            var vertices = new Array(intervals*3);
+            let a = 0.0;
+            for ( let i = 0; i < vertices.length/3; ++i )
+            {
+               vertices[i*3] = Math.cos(a);
+               vertices[i*3+1] = Math.sin(a);
+               vertices[i*3+2] = 0.0;
+
+               a+= Math.PI / intervals;
+            }
+
+            var vertex_buffer = gl.createBuffer();
+            
+            gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+            gl.bindBuffer(gl.ARRAY_BUFFER, null);
+            
+            /* Step 4: Associate the shader programs to buffer objects */
+
+            //Bind vertex buffer object
+            gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
+
+            //Get the attribute location
+            //point an attribute to the currently bound VBO
+            //Enable the attribute
+            const coord = gl.getAttribLocation(shader.shaderProgram, "coordinates");
+            gl.vertexAttribPointer(coord, 3, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(coord);
+
+            /* Step5: Drawing the required object (triangle) */
+            shader.activate(gl);
+
+            // Clear the canvas
+            gl.clearColor(0.5, 0.5, 0.5, 0.9);
+
+            // Enable the depth test
+            gl.enable(gl.DEPTH_TEST); 
+            
+            // Clear the color buffer bit
+            gl.clear(gl.COLOR_BUFFER_BIT);
+
+            // Set the view port
+            gl.viewport(0,0,canvas.width,canvas.height);
+
+            const basePos = gl.getUniformLocation( shader.shaderProgram, "base_position" );
+            const transform = gl.getUniformLocation( shader.shaderProgram, "transform" );
+            const scale = gl.getUniformLocation( shader.shaderProgram, "scale" );
+            const uColor = gl.getUniformLocation( shader.shaderProgram, "fragColor" );
+
+            let currentAngle = tNow / 10.0;
+            let currentRotation = [];
+            
+
+            // Draw the triangles
+            for ( let i = -1.0; i <= 1.0; i += 0.2 )
+            {
+               for ( let j = -1.0; j <= 1.0; j += 0.2 )
+               {
+                  const radians = (currentAngle + i*-90.0 + j*180.0) * Math.PI / 45.0;
+                  currentRotation[0] = 0.15*Math.sin(radians);
+                  currentRotation[1] = 0.15*Math.cos(radians);
+                  gl.uniform2fv( transform, currentRotation );
+                  gl.uniform2fv( scale,[1.0 + Math.sin(radians*.2), 1.0 + Math.sin(radians*.2)]);
+                  gl.uniform2fv( basePos, [i + 0.05*Math.cos(radians*2.0),j + 0.05*Math.sin(radians*2.0)] );
+
+                  const radians2 = (currentAngle + j*-90.0 + i*180.0) * Math.PI / 360.0;
+                  const color = [ Math.sin(radians2*2), 
+                                  Math.sin(radians2*1), 
+                                  Math.sin(radians2), 
+                                 1.0 ];
+
+                  gl.uniform4fv( uColor, color );
+
+                  gl.drawArrays(gl.TRIANGLE_FAN, 0, intervals);
+               }
+            }
+
+            window.requestAnimationFrame(draw);
+         }
+
+         init();
+         draw();
+      </script>
+   </body>
+</html>
