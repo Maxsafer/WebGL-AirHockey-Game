@@ -796,7 +796,7 @@ function ballPhysics1()
 	}
 }
 
-// Handles CPU paddle movement and logic
+// Handles default CPU paddle movement and logic
 function opponentPaddleMovement()
 {
 	// Lerp towards the ball on the y plane
